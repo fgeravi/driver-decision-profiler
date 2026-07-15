@@ -4,6 +4,17 @@ import pytest
 
 from driver_decision_profiler.models import (
     DriverDecision,
+    DriverRelationship,
+    RaceContext,
+    RacePhase,
+    RacingLine,
+    TrackSection,
+    TrafficState,
+    VehiclePosition,
+)
+
+from driver_decision_profiler.models import (
+    DriverDecision,
     RacingLine,
     TrackSection,
     VehiclePosition,
@@ -83,3 +94,104 @@ def test_driver_decision_rejects_negative_timestamp() -> None:
             position=VehiclePosition(300.0, 210.0),
             timestamp_seconds=-1.0,
         )
+def test_race_context_stores_teammate_following_conditions() -> None:
+    context = RaceContext(
+        traffic_state=TrafficState.FOLLOWING,
+        race_phase=RacePhase.GREEN_FLAG,
+        car_ahead_number=12,
+        car_ahead_relationship=DriverRelationship.TEAMMATE,
+        gap_seconds=0.35,
+        closing_rate_mph=2.4,
+        tire_age_laps=18,
+    )
+
+    assert context.traffic_state is TrafficState.FOLLOWING
+    assert context.race_phase is RacePhase.GREEN_FLAG
+    assert context.car_ahead_number == 12
+    assert context.car_ahead_relationship is DriverRelationship.TEAMMATE
+    assert context.gap_seconds == 0.35
+    assert context.closing_rate_mph == 2.4
+    assert context.tire_age_laps == 18
+
+
+def test_race_context_allows_clear_track() -> None:
+    context = RaceContext(
+        traffic_state=TrafficState.CLEAR_TRACK,
+        race_phase=RacePhase.GREEN_FLAG,
+    )
+
+    assert context.car_ahead_number is None
+    assert context.car_ahead_relationship is DriverRelationship.NONE
+
+
+def test_race_context_requires_car_number_for_relationship() -> None:
+    with pytest.raises(
+        ValueError,
+        match="car_ahead_number is required",
+    ):
+        RaceContext(
+            traffic_state=TrafficState.FOLLOWING,
+            race_phase=RacePhase.GREEN_FLAG,
+            car_ahead_relationship=DriverRelationship.TEAMMATE,
+        )
+
+
+def test_clear_track_rejects_car_ahead() -> None:
+    with pytest.raises(
+        ValueError,
+        match="clear track context cannot include a car ahead",
+    ):
+        RaceContext(
+            traffic_state=TrafficState.CLEAR_TRACK,
+            race_phase=RacePhase.GREEN_FLAG,
+            car_ahead_number=22,
+            car_ahead_relationship=DriverRelationship.OPPONENT,
+        )
+
+
+def test_race_context_rejects_negative_gap() -> None:
+    with pytest.raises(ValueError, match="gap_seconds cannot be negative"):
+        RaceContext(
+            traffic_state=TrafficState.FOLLOWING,
+            race_phase=RacePhase.GREEN_FLAG,
+            car_ahead_number=22,
+            car_ahead_relationship=DriverRelationship.OPPONENT,
+            gap_seconds=-0.2,
+        )
+
+
+def test_race_context_rejects_negative_tire_age() -> None:
+    with pytest.raises(
+        ValueError,
+        match="tire_age_laps cannot be negative",
+    ):
+        RaceContext(
+            traffic_state=TrafficState.CLEAR_TRACK,
+            race_phase=RacePhase.GREEN_FLAG,
+            tire_age_laps=-1,
+        )
+
+
+def test_driver_decision_can_store_race_context() -> None:
+    context = RaceContext(
+        traffic_state=TrafficState.FOLLOWING,
+        race_phase=RacePhase.RESTART,
+        car_ahead_number=12,
+        car_ahead_relationship=DriverRelationship.TEAMMATE,
+        gap_seconds=0.28,
+    )
+
+    decision = DriverDecision(
+        lap_number=5,
+        section=TrackSection("turn_1_entry", "Turn 1 Entry"),
+        racing_line=RacingLine.LOW,
+        position=VehiclePosition(150.0, 225.0),
+        timestamp_seconds=52.4,
+        context=context,
+    )
+
+    assert decision.context == context
+    assert (
+        decision.context.car_ahead_relationship
+        is DriverRelationship.TEAMMATE
+    )

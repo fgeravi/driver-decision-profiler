@@ -17,13 +17,46 @@ class RacingLine(str, Enum):
     LOW = "low"
 
     def __str__(self) -> str:
-        """Return a readable label for display and exported reports."""
+        """Return a readable label for displays and reports."""
         return self.value.title()
+
+
+class DriverRelationship(str, Enum):
+    """Relationship between the profiled driver and the car ahead."""
+
+    TEAMMATE = "teammate"
+    OPPONENT = "opponent"
+    NONE = "none"
+
+    def __str__(self) -> str:
+        return self.value.title()
+
+
+class RacePhase(str, Enum):
+    """Current phase of a race session."""
+
+    GREEN_FLAG = "green_flag"
+    RESTART = "restart"
+    CAUTION = "caution"
+
+    def __str__(self) -> str:
+        return self.value.replace("_", " ").title()
+
+
+class TrafficState(str, Enum):
+    """Traffic situation surrounding the profiled vehicle."""
+
+    CLEAR_TRACK = "clear_track"
+    FOLLOWING = "following"
+    SIDE_BY_SIDE = "side_by_side"
+
+    def __str__(self) -> str:
+        return self.value.replace("_", " ").title()
 
 
 @dataclass(frozen=True, slots=True)
 class VehiclePosition:
-    """Represents a vehicle's two-dimensional position at a point in time."""
+    """Represents a vehicle's two-dimensional position."""
 
     x: float
     y: float
@@ -52,6 +85,45 @@ class TrackSection:
 
 
 @dataclass(frozen=True, slots=True)
+class RaceContext:
+    """Race conditions present when a driver decision is recorded."""
+
+    traffic_state: TrafficState
+    race_phase: RacePhase
+    car_ahead_number: int | None = None
+    car_ahead_relationship: DriverRelationship = DriverRelationship.NONE
+    gap_seconds: float | None = None
+    closing_rate_mph: float | None = None
+    tire_age_laps: int = 0
+
+    def __post_init__(self) -> None:
+        if self.car_ahead_number is not None and self.car_ahead_number < 0:
+            raise ValueError("car_ahead_number cannot be negative")
+
+        if self.gap_seconds is not None and self.gap_seconds < 0:
+            raise ValueError("gap_seconds cannot be negative")
+
+        if self.tire_age_laps < 0:
+            raise ValueError("tire_age_laps cannot be negative")
+
+        if (
+            self.car_ahead_relationship is not DriverRelationship.NONE
+            and self.car_ahead_number is None
+        ):
+            raise ValueError(
+                "car_ahead_number is required when a relationship is set"
+            )
+
+        if (
+            self.traffic_state is TrafficState.CLEAR_TRACK
+            and self.car_ahead_number is not None
+        ):
+            raise ValueError(
+                "clear track context cannot include a car ahead"
+            )
+
+
+@dataclass(frozen=True, slots=True)
 class DriverDecision:
     """A racing-line decision recorded at a specific track section."""
 
@@ -60,6 +132,7 @@ class DriverDecision:
     racing_line: RacingLine
     position: VehiclePosition
     timestamp_seconds: float
+    context: RaceContext | None = None
 
     def __post_init__(self) -> None:
         if self.lap_number < 1:
