@@ -3,6 +3,17 @@
 import pytest
 
 from driver_decision_profiler.models import (
+    DriverRelationship,
+    RaceContext,
+    RacePhase,
+    RacingLine,
+    TrackSection,
+    TrafficState,
+    VehiclePosition,
+)
+
+
+from driver_decision_profiler.models import (
     RacingLine,
     TrackSection,
     VehiclePosition,
@@ -220,3 +231,33 @@ def test_reset_clears_decisions_and_active_state(
 
     assert new_decision is not None
     assert new_decision.racing_line is RacingLine.MIDDLE
+
+
+def test_recorder_attaches_race_context(
+    recorder: DecisionRecorder,
+    turn_one_section: TrackSection,
+) -> None:
+    context = RaceContext(
+        traffic_state=TrafficState.FOLLOWING,
+        race_phase=RacePhase.GREEN_FLAG,
+        car_ahead_number=12,
+        car_ahead_relationship=DriverRelationship.TEAMMATE,
+        gap_seconds=0.32,
+        closing_rate_mph=1.8,
+        tire_age_laps=14,
+    )
+
+    decision = recorder.update(
+        lap_number=3,
+        section=turn_one_section,
+        position=VehiclePosition(x=150, y=225),
+        timestamp_seconds=28.6,
+        context=context,
+    )
+
+    assert decision is not None
+    assert decision.context == context
+    assert (
+        decision.context.car_ahead_relationship
+        is DriverRelationship.TEAMMATE
+    )

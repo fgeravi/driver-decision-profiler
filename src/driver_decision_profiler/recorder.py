@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 
 from driver_decision_profiler.models import (
     DriverDecision,
+    RaceContext,
     TrackSection,
     VehiclePosition,
 )
@@ -25,12 +26,9 @@ class DecisionRecorder:
         section: TrackSection,
         position: VehiclePosition,
         timestamp_seconds: float,
+        context: RaceContext | None = None,
     ) -> DriverDecision | None:
-        """Record a decision when a vehicle first enters a section's zone.
-
-        A new event is created only when the vehicle enters a classified zone
-        after previously being outside that section's zones.
-        """
+        """Record a decision when a vehicle first enters a section zone."""
         racing_line = self.track.classify_position(
             position=position,
             section_id=section.section_id,
@@ -49,6 +47,7 @@ class DecisionRecorder:
             racing_line=racing_line,
             position=position,
             timestamp_seconds=timestamp_seconds,
+            context=context,
         )
 
         self.decisions.append(decision)
